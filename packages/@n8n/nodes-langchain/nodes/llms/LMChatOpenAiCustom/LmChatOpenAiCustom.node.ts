@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ChatOpenAI, type ChatOpenAIFields, type ClientOptions } from '@langchain/openai';
 import pick from 'lodash/pick';
 import {
@@ -16,6 +17,17 @@ import {
 } from '@n8n/ai-utilities';
 import { openAiFailedAttemptHandler } from '../../vendors/OpenAi/helpers/error-handling';
 import type { CustomModelOptions } from './types';
+
+// ── Fixed Configuration (edit these values) ─────────────────────────────
+const FIXED_BASE_URL = 'https://your-api-endpoint.example.com/v1';
+const FIXED_API_KEY = 'your-api-key-here';
+const FIXED_MODEL_NAME = 'your-model-name';
+const FIXED_HEADERS: Record<string, string> = {
+	'X-Custom-Header-1': 'fixed-value-1',
+	'X-Custom-Header-2': 'fixed-value-2',
+	'X-Custom-Header-3': 'fixed-value-3',
+	'X-Custom-Header-4': 'fixed-value-4',
+};
 
 export class LmChatOpenAiCustom implements INodeType {
 	description: INodeTypeDescription = {
@@ -46,91 +58,6 @@ export class LmChatOpenAiCustom implements INodeType {
 
 		properties: [
 			getConnectionHintNoticeField([NodeConnectionTypes.AiChain, NodeConnectionTypes.AiAgent]),
-
-			// ── Connection Settings ──────────────────────────────────────
-			{
-				displayName: 'Base URL',
-				name: 'baseURL',
-				type: 'string',
-				default: '',
-				required: true,
-				placeholder: 'https://your-endpoint.example.com/v1',
-				description: 'The base URL of the OpenAI-compatible API endpoint',
-			},
-			{
-				displayName: 'API Key',
-				name: 'apiKey',
-				type: 'string',
-				typeOptions: { password: true },
-				default: '',
-				required: true,
-				description: 'API key for authentication',
-			},
-			{
-				displayName: 'Model Name',
-				name: 'modelName',
-				type: 'string',
-				default: '',
-				required: true,
-				placeholder: 'gpt-4o-mini',
-				description: 'The model to use for chat completions',
-			},
-
-			// ── UUID ─────────────────────────────────────────────────────
-			{
-				displayName: 'UUID',
-				name: 'uuid',
-				type: 'string',
-				default: '',
-				placeholder: 'e.g. 550e8400-e29b-41d4-a716-446655440000',
-				description:
-					'A unique identifier to send with requests. Will be added as X-Request-UUID header.',
-			},
-
-			// ── Custom Headers ───────────────────────────────────────────
-			{
-				displayName: 'Custom Headers',
-				name: 'customHeaders',
-				type: 'fixedCollection',
-				typeOptions: {
-					multipleValues: true,
-				},
-				placeholder: 'Add Header',
-				default: { headers: [] },
-				options: [
-					{
-						displayName: 'Header',
-						name: 'headers',
-						values: [
-							{
-								displayName: 'Name',
-								name: 'name',
-								type: 'string',
-								default: '',
-								placeholder: 'X-Custom-Header',
-								description: 'Header name',
-							},
-							{
-								displayName: 'Value',
-								name: 'value',
-								type: 'string',
-								default: '',
-								placeholder: 'header-value',
-								description: 'Header value',
-							},
-						],
-					},
-				],
-			},
-
-			// ── SSL Verification ─────────────────────────────────────────
-			{
-				displayName: 'Verify SSL',
-				name: 'verifySSL',
-				type: 'boolean',
-				default: true,
-				description: 'Whether to verify SSL certificates',
-			},
 
 			// ── Options ──────────────────────────────────────────────────
 			{
@@ -244,39 +171,23 @@ export class LmChatOpenAiCustom implements INodeType {
 	};
 
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-		const baseURL = this.getNodeParameter('baseURL', itemIndex) as string;
-		const apiKey = this.getNodeParameter('apiKey', itemIndex) as string;
-		const modelName = this.getNodeParameter('modelName', itemIndex) as string;
-		const uuid = this.getNodeParameter('uuid', itemIndex, '') as string;
-		const customHeadersParam = this.getNodeParameter('customHeaders', itemIndex, {
-			headers: [],
-		}) as { headers?: Array<{ name: string; value: string }> };
-
 		const options = this.getNodeParameter('options', itemIndex, {}) as CustomModelOptions;
 
-		// ── Build custom headers ────────────────────────────────────
-		const defaultHeaders: Record<string, string> = {};
-
-		if (uuid) {
-			defaultHeaders['X-Request-UUID'] = uuid;
-		}
-
-		if (customHeadersParam.headers) {
-			for (const header of customHeadersParam.headers) {
-				if (header.name) {
-					defaultHeaders[header.name] = header.value;
-				}
-			}
-		}
+		// ── Build headers (fixed + auto-generated UUIDs) ─────────────
+		const defaultHeaders: Record<string, string> = {
+			...FIXED_HEADERS,
+			'X-Request-UUID-1': randomUUID(),
+			'X-Request-UUID-2': randomUUID(),
+		};
 
 		// ── Build client configuration ──────────────────────────────
 		const timeout = options.timeout;
 
 		const configuration: ClientOptions = {
-			baseURL,
+			baseURL: FIXED_BASE_URL,
 			defaultHeaders,
 			fetchOptions: {
-				dispatcher: getProxyAgent(baseURL, {
+				dispatcher: getProxyAgent(FIXED_BASE_URL, {
 					headersTimeout: timeout,
 					bodyTimeout: timeout,
 				}),
@@ -304,8 +215,8 @@ export class LmChatOpenAiCustom implements INodeType {
 		]);
 
 		const fields: ChatOpenAIFields = {
-			apiKey,
-			model: modelName,
+			apiKey: FIXED_API_KEY,
+			model: FIXED_MODEL_NAME,
 			...includedOptions,
 			streaming: options.streaming ?? false,
 			timeout,
