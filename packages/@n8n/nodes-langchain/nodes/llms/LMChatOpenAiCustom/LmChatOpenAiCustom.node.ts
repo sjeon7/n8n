@@ -9,10 +9,10 @@ import {
 	type SupplyData,
 } from 'n8n-workflow';
 
+import { Agent } from 'undici';
 import {
 	makeN8nLlmFailedAttemptHandler,
 	N8nLlmTracing,
-	getProxyAgent,
 	getConnectionHintNoticeField,
 } from '@n8n/ai-utilities';
 import { openAiFailedAttemptHandler } from '../../vendors/OpenAi/helpers/error-handling';
@@ -187,9 +187,10 @@ export class LmChatOpenAiCustom implements INodeType {
 			baseURL: FIXED_BASE_URL,
 			defaultHeaders,
 			fetchOptions: {
-				dispatcher: getProxyAgent(FIXED_BASE_URL, {
+				dispatcher: new Agent({
 					headersTimeout: timeout,
 					bodyTimeout: timeout,
+					connect: { rejectUnauthorized: false },
 				}),
 			},
 		};
