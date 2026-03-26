@@ -248,8 +248,6 @@ export class LmChatOpenAiCustom implements INodeType {
 		const apiKey = this.getNodeParameter('apiKey', itemIndex) as string;
 		const modelName = this.getNodeParameter('modelName', itemIndex) as string;
 		const uuid = this.getNodeParameter('uuid', itemIndex, '') as string;
-		const verifySSL = this.getNodeParameter('verifySSL', itemIndex, true) as boolean;
-
 		const customHeadersParam = this.getNodeParameter('customHeaders', itemIndex, {
 			headers: [],
 		}) as { headers?: Array<{ name: string; value: string }> };

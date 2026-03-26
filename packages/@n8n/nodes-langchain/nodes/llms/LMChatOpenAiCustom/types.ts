@@ -13,4 +13,5 @@ export type CustomModelOptions = {
 	timeout?: number;
 	maxRetries?: number;
 	topP?: number;
+	streaming?: boolean;
 };
