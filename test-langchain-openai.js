@@ -1,23 +1,9 @@
 const { ChatOpenAI } = require('@langchain/openai');
 const { randomUUID } = require('node:crypto');
-const { BaseCallbackHandler } = require('@langchain/core/callbacks/base');
+const { HumanMessage } = require('@langchain/core/messages');
+const { DynamicStructuredTool } = require('@langchain/classic/tools');
+const { z } = require('zod');
 
-// Simulate N8nLlmTracing-like callback
-class DebugTracing extends BaseCallbackHandler {
-  name = 'DebugTracing';
-  async handleLLMStart(llm, prompts) {
-    console.log('[TRACE] LLM Start, prompts:', JSON.stringify(prompts).substring(0, 200));
-  }
-  async handleLLMEnd(output) {
-    console.log('[TRACE] LLM End, output:', JSON.stringify(output).substring(0, 300));
-  }
-  async handleLLMError(err) {
-    console.error('[TRACE] LLM Error:', err.message);
-  }
-}
-
-// --- Test 1: Minimal (already working) ---
-// --- Test 2: With callbacks + onFailedAttempt (matches n8n node) ---
 const model = new ChatOpenAI({
   apiKey: 'your-api-key-here',
   model: 'your-model-name',
@@ -33,21 +19,55 @@ const model = new ChatOpenAI({
       'X-Request-UUID-2': randomUUID(),
     },
   },
-  maxRetries: 2,
+  maxRetries: 0,
   timeout: 30000,
   streaming: false,
-  callbacks: [new DebugTracing()],
-  onFailedAttempt: (error) => {
-    console.error('[RETRY] Attempt', error.attemptNumber, 'failed:', error.message);
-  },
   supportsStrictToolCalling: false,
-  modelKwargs: undefined,
 });
 
-console.log('=== Test: ChatOpenAI with callbacks (n8n-like) ===');
-model.invoke('hello')
-  .then(r => console.log('OK:', r.content.substring(0, 200)))
-  .catch(e => {
+// ── Test 1: Simple invoke (already works) ──
+async function test1() {
+  console.log('=== Test 1: Simple invoke ===');
+  try {
+    const r = await model.invoke('hello');
+    console.log('OK:', r.content.substring(0, 200));
+  } catch (e) {
     console.error('FAIL:', e.message);
-    console.error('CAUSE:', e.cause ?? 'none');
+  }
+}
+
+// ── Test 2: bindTools (what AI Agent does) ──
+async function test2() {
+  console.log('\n=== Test 2: bindTools (AI Agent style) ===');
+  const dummyTool = new DynamicStructuredTool({
+    name: 'get_weather',
+    description: 'Get weather for a city',
+    schema: z.object({ city: z.string() }),
+    func: async ({ city }) => `Weather in ${city}: sunny`,
   });
+
+  try {
+    const modelWithTools = model.bindTools([dummyTool]);
+    const r = await modelWithTools.invoke([new HumanMessage('What is the weather in Seoul?')]);
+    console.log('OK:', JSON.stringify(r.content).substring(0, 200));
+    console.log('Tool calls:', JSON.stringify(r.tool_calls).substring(0, 300));
+  } catch (e) {
+    console.error('FAIL:', e.message);
+    if (e.cause) console.error('CAUSE:', e.cause);
+  }
+}
+
+// ── Test 3: bindTools with empty tools array ──
+async function test3() {
+  console.log('\n=== Test 3: bindTools with empty array ===');
+  try {
+    const modelWithTools = model.bindTools([]);
+    const r = await modelWithTools.invoke([new HumanMessage('hello')]);
+    console.log('OK:', r.content.substring(0, 200));
+  } catch (e) {
+    console.error('FAIL:', e.message);
+    if (e.cause) console.error('CAUSE:', e.cause);
+  }
+}
+
+test1().then(() => test2()).then(() => test3());
