@@ -181,7 +181,7 @@ export class LmChatOpenAiCustom implements INodeType {
 		};
 
 		// ── Build client configuration ──────────────────────────────
-		const timeout = options.timeout;
+		const timeout = options.timeout ?? 120000;
 
 		const configuration: ClientOptions = {
 			baseURL: FIXED_BASE_URL,
@@ -198,33 +198,39 @@ export class LmChatOpenAiCustom implements INodeType {
 		// ── Extra kwargs for response format / reasoning ────────────
 		const modelKwargs: Record<string, unknown> = {};
 
-		if (options.responseFormat) {
+		// Only send response_format if explicitly set to non-text value
+		if (options.responseFormat && options.responseFormat !== 'text') {
 			modelKwargs.response_format = { type: options.responseFormat };
 		}
 
+		// Only send reasoning_effort if explicitly provided
 		if (options.reasoningEffort && ['low', 'medium', 'high'].includes(options.reasoningEffort)) {
 			modelKwargs.reasoning_effort = options.reasoningEffort;
 		}
 
 		// ── Pick LangChain-supported options ────────────────────────
-		const includedOptions = pick(options, [
+		const pickedOptions = pick(options, [
 			'frequencyPenalty',
-			'maxTokens',
 			'presencePenalty',
 			'temperature',
 			'topP',
 		]);
 
+		// Only include maxTokens if explicitly set and not -1
+		const maxTokens =
+			options.maxTokens !== undefined && options.maxTokens > 0 ? options.maxTokens : undefined;
+
 		const fields: ChatOpenAIFields = {
 			apiKey: FIXED_API_KEY,
 			model: FIXED_MODEL_NAME,
-			...includedOptions,
+			...pickedOptions,
+			...(maxTokens !== undefined && { maxTokens }),
 			streaming: options.streaming ?? false,
 			timeout,
 			maxRetries: options.maxRetries ?? 2,
 			configuration,
 			callbacks: [new N8nLlmTracing(this)],
-			modelKwargs,
+			modelKwargs: Object.keys(modelKwargs).length > 0 ? modelKwargs : undefined,
 			onFailedAttempt: makeN8nLlmFailedAttemptHandler(this, openAiFailedAttemptHandler),
 			supportsStrictToolCalling: false,
 		};
