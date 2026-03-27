@@ -180,57 +180,51 @@ export class LmChatOpenAiCustom implements INodeType {
 			'X-Request-UUID-2': randomUUID(),
 		};
 
-		// ── Build client configuration ──────────────────────────────
-		const timeout = options.timeout ?? 120000;
+		// ── Build client configuration (matches original LmChatOpenAi) ──
+		const timeout = options.timeout;
 
 		const configuration: ClientOptions = {
 			baseURL: FIXED_BASE_URL,
 			defaultHeaders,
-			fetchOptions: {
-				dispatcher: new Agent({
-					headersTimeout: timeout,
-					bodyTimeout: timeout,
-					connect: { rejectUnauthorized: false },
-				}),
-			},
+		};
+
+		configuration.fetchOptions = {
+			dispatcher: new Agent({
+				headersTimeout: timeout,
+				bodyTimeout: timeout,
+				connect: { rejectUnauthorized: false },
+			}),
 		};
 
 		// ── Extra kwargs for response format / reasoning ────────────
 		const modelKwargs: Record<string, unknown> = {};
 
-		// Only send response_format if explicitly set to non-text value
-		if (options.responseFormat && options.responseFormat !== 'text') {
+		if (options.responseFormat) {
 			modelKwargs.response_format = { type: options.responseFormat };
 		}
 
-		// Only send reasoning_effort if explicitly provided
 		if (options.reasoningEffort && ['low', 'medium', 'high'].includes(options.reasoningEffort)) {
 			modelKwargs.reasoning_effort = options.reasoningEffort;
 		}
 
-		// ── Pick LangChain-supported options ────────────────────────
-		const pickedOptions = pick(options, [
+		// ── Pick LangChain-supported options (same keys as original) ──
+		const includedOptions = pick(options, [
 			'frequencyPenalty',
+			'maxTokens',
 			'presencePenalty',
 			'temperature',
 			'topP',
 		]);
 
-		// Only include maxTokens if explicitly set and not -1
-		const maxTokens =
-			options.maxTokens !== undefined && options.maxTokens > 0 ? options.maxTokens : undefined;
-
 		const fields: ChatOpenAIFields = {
 			apiKey: FIXED_API_KEY,
 			model: FIXED_MODEL_NAME,
-			...pickedOptions,
-			...(maxTokens !== undefined && { maxTokens }),
-			streaming: options.streaming ?? false,
+			...includedOptions,
 			timeout,
 			maxRetries: options.maxRetries ?? 2,
 			configuration,
 			callbacks: [new N8nLlmTracing(this)],
-			modelKwargs: Object.keys(modelKwargs).length > 0 ? modelKwargs : undefined,
+			modelKwargs,
 			onFailedAttempt: makeN8nLlmFailedAttemptHandler(this, openAiFailedAttemptHandler),
 			supportsStrictToolCalling: false,
 		};
