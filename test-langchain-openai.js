@@ -1,4 +1,5 @@
 const { ChatOpenAI } = require('@langchain/openai');
+const { randomUUID } = require('node:crypto');
 
 const model = new ChatOpenAI({
   apiKey: 'your-api-key-here',
@@ -11,6 +12,8 @@ const model = new ChatOpenAI({
       'X-Custom-Header-2': 'fixed-value-2',
       'X-Custom-Header-3': 'fixed-value-3',
       'X-Custom-Header-4': 'fixed-value-4',
+      'X-Request-UUID-1': randomUUID(),
+      'X-Request-UUID-2': randomUUID(),
     },
   },
   maxRetries: 0,
